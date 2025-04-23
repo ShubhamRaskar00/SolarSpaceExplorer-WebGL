@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Space Explorer - Advanced Ship</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Base Styles --- */
+        :root {
+            --primary-neon: #00e1ff; --secondary-color: #ffffff; --background-deep-space: #000005; --glass-bg: rgba(15, 30, 50, 0.65); --glass-border: 1px solid rgba(0, 225, 255, 0.4); --neon-glow: 0 0 5px var(--primary-neon), 0 0 10px var(--primary-neon), 0 0 15px rgba(0, 225, 255, 0.5); --neon-text-glow: 0 0 3px var(--primary-neon); --font-primary: 'Exo 2', sans-serif; --font-display: 'Orbitron', sans-serif; --error-color: #ff4444; --success-color: #00ff88; --warning-color: #ffcc00;
+        }
+        body { margin: 0; overflow: hidden; background-color: var(--background-deep-space); color: var(--secondary-color); font-family: var(--font-primary); font-size: 14px; font-weight: 300; }
+        #webgl-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .ui-element { position: absolute; background-color: var(--glass-bg); border: var(--glass-border); border-radius: 8px; padding: 15px 20px; box-shadow: var(--neon-glow), inset 0 0 15px rgba(0, 225, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 10; opacity: 0; transition: opacity 0.6s cubic-bezier(0.25, 1, 0.5, 1), transform 0.6s cubic-bezier(0.25, 1, 0.5, 1); pointer-events: none; color: var(--secondary-color); }
+        .ui-element.visible { opacity: 1; pointer-events: auto; }
+        .ui-element h3, .ui-element h4 { font-family: var(--font-display); color: var(--primary-neon); text-shadow: var(--neon-text-glow); margin: 0 0 15px 0; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+        .ui-element p { margin: 8px 0; line-height: 1.6; }
+        .ui-element span, .ui-element .value { float: right; color: var(--primary-neon); font-weight: 400; text-shadow: var(--neon-text-glow); }
+        hr { border-color: rgba(0, 225, 255, 0.2); margin: 10px 0; border-style: solid; border-width: 1px 0 0 0; }
+
+        /* --- Specific UI Panels --- */
+        #starmap-nav { top: 15px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 5px 10px; background: var(--glass-bg); }
+        #starmap-nav button { background: none; border: 1px solid rgba(0, 225, 255, 0.5); color: var(--primary-neon); padding: 4px 8px; cursor: pointer; font-family: var(--font-display); font-size: 11px; border-radius: 4px; transition: background-color 0.3s, box-shadow 0.3s; box-shadow: none; text-transform: uppercase; letter-spacing: 0.5px; }
+        #starmap-nav button:hover { background-color: rgba(0, 225, 255, 0.2); box-shadow: var(--neon-glow); color: #fff; }
+        #starmap-nav button.active { background-color: rgba(0, 225, 255, 0.4); box-shadow: var(--neon-glow); color: #fff; font-weight: bold; }
+        #starmap-nav button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+        #ship-hud { bottom: 20px; left: 50%; transform: translateX(-50%); width: 500px; display: flex; justify-content: space-between; align-items: flex-end; gap: 15px; background: none; border: none; box-shadow: none; backdrop-filter: none; padding: 0; }
+        .hud-panel { background: var(--glass-bg); border: var(--glass-border); border-radius: 6px; padding: 10px 15px; box-shadow: var(--neon-glow); font-size: 0.85em; flex-grow: 1; }
+        .hud-panel h4 { font-size: 0.9em; margin-bottom: 8px; text-align: center; }
+        .hud-panel p { margin: 4px 0; font-size: 0.9em; }
+        .hud-panel span { font-weight: bold; }
+        #fuel-bar-container { height: 8px; background: rgba(0, 225, 255, 0.1); border-radius: 4px; overflow: hidden; margin-top: 5px; }
+        #fuel-bar { width: 85%; height: 100%; background: var(--primary-neon); box-shadow: var(--neon-glow); }
+        #voice-status { cursor: pointer; } #voice-status.muted { color: var(--error-color); }
+        #hud { bottom: 20px; left: 20px; width: 300px; }
+        #hud .stat-bar { height: 5px; background: rgba(0, 225, 255, 0.2); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        #hud .stat-bar-fill { height: 100%; background: var(--primary-neon); width: 0%; transition: width 0.5s ease-out; box-shadow: var(--neon-glow); }
+        #ai-module { bottom: 20px; right: 20px; width: 350px; display: flex; align-items: center; background: none; border: none; box-shadow: none; backdrop-filter: none; gap: 15px; }
+        #ai-orb { width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle, rgba(0, 225, 255, 0.8) 0%, rgba(0, 100, 150, 0.5) 70%); box-shadow: var(--neon-glow), 0 0 25px rgba(0, 225, 255, 0.7); position: relative; cursor: pointer; animation: pulse 2s infinite ease-in-out; flex-shrink: 0; opacity: 0; transition: opacity 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
+        #ai-orb::before { content: ''; position: absolute; top: 30%; left: 30%; width: 40%; height: 40%; background: #fff; border-radius: 50%; filter: blur(3px); }
+        #ai-module.visible #ai-orb { opacity: 1; }
+        #ai-textbox { flex-grow: 1; height: 160px; background-color: var(--glass-bg); border: var(--glass-border); border-radius: 8px; padding: 15px; box-shadow: var(--neon-glow), inset 0 0 15px rgba(0, 225, 255, 0.1); backdrop-filter: blur(10px); display: flex; flex-direction: column; opacity: 0; transition: opacity 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
+        #ai-module.visible #ai-textbox { opacity: 1; }
+        #ai-textbox h4 { margin: 0 0 10px 0; font-size: 1em; }
+        #ai-output { flex-grow: 1; overflow-y: auto; font-size: 0.9em; line-height: 1.5; scrollbar-width: thin; scrollbar-color: var(--primary-neon) rgba(15, 30, 50, 0.3); margin-bottom: 10px; }
+        #ai-output::-webkit-scrollbar { width: 6px; } #ai-output::-webkit-scrollbar-track { background: rgba(15, 30, 50, 0.3); border-radius: 3px;} #ai-output::-webkit-scrollbar-thumb { background-color: var(--primary-neon); border-radius: 3px; box-shadow: var(--neon-glow);}
+        #chat-input { width: calc(100% - 10px); background: rgba(0,0,0,0.3); border: 1px solid rgba(0, 225, 255, 0.3); color: white; padding: 5px; font-family: inherit; font-size: 0.9em; border-radius: 4px; }
+        .chat-message { margin-bottom: 5px; } .chat-message strong { color: var(--primary-neon); } .ai-message { font-style: italic; color: #aaddff; }
+        #surface-interaction { top: 15px; left: 20px; width: 220px; }
+        #surface-interaction button { display: block; width: 100%; background: rgba(15, 30, 50, 0.8); border: var(--glass-border); color: var(--secondary-color); padding: 10px 15px; margin-bottom: 10px; cursor: pointer; font-family: var(--font-primary); font-size: 0.9em; text-align: left; border-radius: 5px; transition: background-color 0.3s, box-shadow 0.3s, color 0.3s; box-shadow: inset 0 0 5px rgba(0, 225, 255, 0.2); position: relative; }
+        #surface-interaction button:hover { background-color: rgba(0, 225, 255, 0.2); color: var(--primary-neon); box-shadow: var(--neon-glow); }
+        #surface-interaction button.selected { background-color: var(--primary-neon); color: var(--background-deep-space); font-weight: 700; box-shadow: var(--neon-glow); }
+        #mode-walk::after { content: '🚶'; position: absolute; right: 15px; opacity: 0.7;} #mode-rover::after { content: ' R '; position: absolute; right: 15px; font-family: var(--font-display); opacity: 0.7; border: 1px solid; padding: 0 2px; border-radius: 3px;} #mode-ship::after { content: '🚀'; position: absolute; right: 15px; opacity: 0.7;} #action-scan::after { content: '📡'; position: absolute; right: 15px; opacity: 0.7;} #action-sample::after { content: '🔬'; position: absolute; right: 15px; opacity: 0.7;} #action-return-ship::after { content: '⬆️'; position: absolute; right: 15px; opacity: 0.7;}
+        #multiplayer-ui { position: absolute; top: 15px; right: 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 15; }
+        #friend-list, #mission-log, #minimap { width: 250px; }
+        #friend-list ul { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; font-size: 0.9em;}
+        #friend-list li { padding: 5px 0; border-bottom: 1px solid rgba(0, 225, 255, 0.1); display: flex; justify-content: space-between; align-items: center; }
+        #friend-list li span.status { font-size: 0.8em; border-radius: 3px; padding: 2px 4px; margin-left: 5px; }
+        #friend-list li span.online { color: #fff; background-color: var(--success-color); } #friend-list li span.offline { color: #ccc; background-color: #555; } #friend-list li span.ingame { color: #000; background-color: var(--warning-color); }
+        #friend-list button { background: rgba(0, 225, 255, 0.2); border: 1px solid var(--primary-neon); color: var(--primary-neon); font-size: 0.8em; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-left: 5px; }
+        #friend-list button:hover { background: var(--primary-neon); color: #000; }
+        #mission-log p { font-size: 0.9em; } #mission-log .objective.complete { text-decoration: line-through; color: #aaa; }
+        #minimap { height: 150px; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; font-style: italic; color: #aaa; }
+        #transition-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(0,0,0,0) 0%, rgba(0,0,0,0.8) 70%), linear-gradient(transparent, var(--primary-neon), transparent); background-size: 100%, 200% 200%; z-index: 20; display: flex; justify-content: center; align-items: center; font-family: var(--font-display); font-size: 2.5em; color: var(--primary-neon); text-shadow: var(--neon-glow), 0 0 25px var(--primary-neon); pointer-events: none; opacity: 0; transition: opacity 0.5s ease-in-out; animation: gradientShift 1s linear infinite alternate; }
+        #transition-overlay.visible { opacity: 1; } #transition-overlay.jump-effect { background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, rgba(0, 225, 255, 0.3) 40%, rgba(0, 20, 50, 0.8) 80%); animation: pulseFast 0.1s infinite alternate; }
+        @keyframes gradientShift { 0% { background-position: 0% 50%, 50% 0%; } 100% { background-position: 0% 50%, 50% 100%; } }
+        @keyframes pulseFast { 0% { opacity: 0.8; } 100% { opacity: 1; transform: scale(1.02); } }
+        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #000; z-index: 100; display: flex; justify-content: center; align-items: center; flex-direction: column; color: var(--primary-neon); font-family: var(--font-display); font-size: 1.8em; text-shadow: var(--neon-glow); }
+        #loading-spinner { border: 6px solid rgba(0, 225, 255, 0.2); border-top: 6px solid var(--primary-neon); border-radius: 50%; width: 60px; height: 60px; animation: spin 1.2s linear infinite; margin-top: 25px; box-shadow: var(--neon-glow); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes pulse { 0% { transform: scale(1); box-shadow: var(--neon-glow), 0 0 25px rgba(0, 225, 255, 0.7); } 50% { transform: scale(1.05); box-shadow: var(--neon-glow), 0 0 35px rgba(0, 225, 255, 1); } 100% { transform: scale(1); box-shadow: var(--neon-glow), 0 0 25px rgba(0, 225, 255, 0.7); } }
+        .player-tag { position: absolute; transform: translateX(-50%); background: rgba(0, 0, 0, 0.5); color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px; white-space: nowrap; pointer-events: none; z-index: 5; opacity: 0.8; }
+        #cockpit-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 100%), linear-gradient(to bottom, rgba(0,20,30,0.8) 0%, transparent 20%, transparent 80%, rgba(0,20,30,0.8) 100%); /* Example Vignette + Borders */ pointer-events: none; z-index: 8; opacity: 0; transition: opacity 0.5s; display: none; }
+        #cockpit-overlay.visible { opacity: 1; display: block;}
+
+    </style>
+</head>
+<body>
+    <div id="loading-screen">Initializing Ship Systems...<div id="loading-spinner"></div></div>
+    <div id="webgl-container"></div>
+    <div id="cockpit-overlay"></div>
+
+    <!-- UI Elements -->
+    <div id="starmap-nav" class="ui-element"></div>
+    <div id="ship-hud" class="ui-element">
+        <div class="hud-panel"><h4>NAVCOM</h4><p>Status: <span id="ship-status">Nominal</span></p><p>Target: <span id="ship-target">None</span></p></div>
+        <div class="hud-panel"><h4>PROPULSION</h4><p>Fuel: <span id="ship-fuel">85%</span></p><div id="fuel-bar-container"><div id="fuel-bar"></div></div><p>Jump Drive: <span id="jump-status" style="color: limegreen;">Ready</span></p></div>
+        <div class="hud-panel"><h4>SYSTEMS</h4><p>Shields: <span style="color: lightblue;">Online</span></p><p>Voice: <span id="voice-status" onclick="toggleMute()">Active</span></p></div>
+    </div>
+    <div id="hud" class="ui-element"> <!-- Planetary HUD -->
+        <h3 id="hud-planet">PLANETARY DATA</h3>
+        <p>Designation: <span id="hud-designation">N/A</span></p>
+        <p>Gravity: <span id="hud-gravity">-- G</span></p>
+        <p>Temperature: <span id="hud-temp">-- °C</span></p>
+        <p>Atmosphere: <span id="hud-atmosphere">--</span></p>
+        <p>Pressure: <span id="hud-pressure">-- atm</span></p>
+        <p>Day Length: <span id="hud-daylength">-- hours</span></p>
+        <p>Distance (Sun): <span id="hud-distance">-- AU</span></p>
+        <p>Status: <span id="hud-status">No Data</span></p> <!-- Corrected ID in HTML -->
+        <p>Oxygen Level:</p>
+        <div class="stat-bar"><div id="hud-oxygen-bar" class="stat-bar-fill"></div></div>
+    </div>
+    <div id="ai-module" class="ui-element">
+        <div id="ai-orb" title="AI Assistant: SOL / Comms"></div>
+        <div id="ai-textbox">
+            <h4>AI: SOL / CHAT</h4>
+            <div id="ai-output">Connecting to network...</div>
+            <input type="text" id="chat-input" placeholder="Type message..." >
+        </div>
+    </div>
+    <div id="surface-interaction" class="ui-element"> <!-- Surface Ops -->
+         <h4>SURFACE OPERATIONS</h4>
+        <button id="mode-walk" onclick="selectMode('walk')">EVA Walk</button>
+        <button id="mode-rover" onclick="selectMode('rover')">Deploy Rover</button>
+        <button id="mode-ship" onclick="selectMode('ship')">Pilot Scout</button>
+        <hr><button id="action-scan" onclick="performAction('scan')">Scan Area</button>
+        <button id="action-sample" onclick="performAction('sample')">Take Sample</button>
+        <hr><button id="action-return-ship" onclick="returnToShip()">Return to Ship</button>
+    </div>
+    <div id="multiplayer-ui"> <!-- Friend List, Mission Log, Minimap -->
+        <div id="friend-list" class="ui-element"><h4>Crew & Contacts</h4><ul id="friend-list-ul"><li>Cmdr_Xeon <span class="status online">Online</span> <button onclick="invitePlayer('Cmdr_Xeon')">Invite</button></li><li>Raptor_7 <span class="status ingame">Orbit</span> <button onclick="joinPlayer('Raptor_7')">Join</button></li><li>Nova <span class="status offline">Offline</span></li></ul></div>
+        <div id="mission-log" class="ui-element"><h4>Active Mission</h4><p id="mission-title">Survey Gamma-7 Outpost</p><p id="mission-objective" class="objective">- Scan 3 geological anomalies [0/3]</p><p id="mission-objective-2" class="objective complete">- Reach designated coordinates</p></div>
+        <div id="minimap" class="ui-element"><h4>Minimap</h4><div style="text-align: center; color: #aaa; margin-top: 20px;">(Real-time map data unavailable)</div></div>
+    </div>
+    <div id="transition-overlay"><span id="transition-text"></span></div>
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+
+    <script>
+        // --- Global Variables ---
+        let scene, camera, renderer, controls, composer, bloomPass;
+        let sun, skybox, ship; // ship is now a Group
+        const planets = {}; const textureLoader = new THREE.TextureLoader();
+        const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+        let selectedPlanet = null;
+        let currentView = 'loading';
+        let explorationMode = 'walk';
+        let currentCameraTarget = new THREE.Vector3(0, 0, 0);
+        let shipPositionBeforeJump = new THREE.Vector3(); let shipQuaternionBeforeJump = new THREE.Quaternion();
+        let cameraOffset = new THREE.Vector3(0, 3, -10); // Adjusted default camera offset
+        let currentCameraMode = 'chase'; // chase, orbit, cockpit
+
+        const clock = new THREE.Clock();
+        const PLAYER_ID = `Player_${Math.random().toString(16).slice(2, 8)}`;
+        const otherPlayers = {};
+        let isMuted = false; let isInSquad = false; let squadTargetPlanet = null;
+        let shipEngineLightLeft, shipEngineLightRight, shipNavLightRed, shipNavLightGreen, shipAntenna;
+
+        // --- UI Elements ---
+        const loadingScreen = document.getElementById('loading-screen');
+        const starmapNav = document.getElementById('starmap-nav'); const shipHud = document.getElementById('ship-hud'); const planetaryHud = document.getElementById('hud'); const aiModule = document.getElementById('ai-module'); const aiOutput = document.getElementById('ai-output'); const chatInput = document.getElementById('chat-input'); const surfaceInteraction = document.getElementById('surface-interaction'); const transitionOverlay = document.getElementById('transition-overlay'); const transitionText = document.getElementById('transition-text'); const multiplayerUi = document.getElementById('multiplayer-ui'); const friendListUl = document.getElementById('friend-list-ul'); const missionTitle = document.getElementById('mission-title'); const missionObjective = document.getElementById('mission-objective'); const hudPlanet = document.getElementById('hud-planet'); const hudDesignation = document.getElementById('hud-designation'); const hudGravity = document.getElementById('hud-gravity'); const hudTemp = document.getElementById('hud-temp'); const hudAtmosphere = document.getElementById('hud-atmosphere'); const hudPressure = document.getElementById('hud-pressure'); const hudDayLength = document.getElementById('hud-daylength'); const hudDistance = document.getElementById('hud-distance'); const hudStatus = document.getElementById('hud-status'); const hudOxygenBar = document.getElementById('hud-oxygen-bar'); const shipStatus = document.getElementById('ship-status'); const shipTarget = document.getElementById('ship-target'); const shipFuel = document.getElementById('ship-fuel'); const jumpStatus = document.getElementById('jump-status'); const voiceStatus = document.getElementById('voice-status'); const cockpitOverlay = document.getElementById('cockpit-overlay');
+
+        // --- Planet Data ---
+        const AU = 100;
+        const planetData = { /* ... (Keep the detailed planetData object) ... */
+            Mercury: { size: 0.38*3, distance: 0.39*AU, color: 0xAAAAAA, rotationSpeed: 0.005, orbitSpeed: 1.6, texture: 'https://threejs.org/examples/textures/planets/mercurymap.jpg', bumpMap: 'https://threejs.org/examples/textures/planets/mercurybump.jpg', bumpScale: 0.02, info:"...", gravity: 0.38, temp:"167°C", atmosphere:"Trace", pressure:"Negligible", dayLength:1408, distanceAU:0.4 },
+            Venus:   { size: 0.95*3, distance: 0.72*AU, color: 0xFFE4B5, rotationSpeed: 0.002, orbitSpeed: 1.17, texture: 'https://threejs.org/examples/textures/planets/venusmap.jpg',   bumpMap: 'https://threejs.org/examples/textures/planets/venusbump.jpg',   bumpScale: 0.03, atmosphereShell:true, info:"...", gravity: 0.91, temp:"464°C", atmosphere:"Dense CO2", pressure:"92 atm", dayLength:5832, distanceAU:0.7 },
+            Earth:   { size: 1.00*3, distance: 1.00*AU, color: 0x6495ED, rotationSpeed: 0.050, orbitSpeed: 1.00, texture: 'https://threejs.org/examples/textures/planets/earth_atmos_4096.jpg', specMap: 'https://threejs.org/examples/textures/planets/earth_specular_2048.jpg', bumpMap: 'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg', bumpScale: 0.05, cloudMap:'https://threejs.org/examples/textures/planets/earth_clouds_2048.png', atmosphereShell:true, info:"...", gravity: 1.00, temp:"15°C",  atmosphere:"N2/O2", pressure:"1 atm", dayLength:24,   distanceAU:1.0, oxygen: 21 },
+            Mars:    { size: 0.53*3, distance: 1.52*AU, color: 0xFF7F50, rotationSpeed: 0.048, orbitSpeed: 0.80, texture: 'https://threejs.org/examples/textures/planets/mars_1k_color.jpg',   bumpMap: 'https://threejs.org/examples/textures/planets/mars_1k_normal.jpg',   bumpScale: 0.06, info:"...", gravity: 0.38, temp:"-65°C", atmosphere:"Thin CO2", pressure:"0.006 atm", dayLength:24.6, distanceAU:1.5 },
+            Jupiter: { size:11.20*2, distance: 5.20*AU*0.9, color: 0xD2B48C, rotationSpeed: 0.120, orbitSpeed: 0.43, isGasGiant: true, texture: 'https://threejs.org/examples/textures/planets/jupitermap.jpg', atmosphereShell:true, info:"...", gravity: 2.53, temp:"-110°C",atmosphere:"H2/He", pressure:"High", dayLength:9.9,  distanceAU:5.2 },
+            Saturn:  { size: 9.45*2, distance: 9.58*AU*0.9, color: 0xF4A460, rotationSpeed: 0.110, orbitSpeed: 0.32, isGasGiant: true, texture: 'https://threejs.org/examples/textures/planets/saturnmap.jpg', ringTexture: 'https://threejs.org/examples/textures/planets/saturnringcolor.jpg', ringTransparency: 'https://threejs.org/examples/textures/planets/saturnringpattern.gif', atmosphereShell:true, info:"...", gravity: 1.07, temp:"-140°C",atmosphere:"H2/He", pressure:"High", dayLength:10.7, distanceAU:9.6 },
+            Uranus:  { size: 4.00*2, distance:19.20*AU*0.8, color: 0xAFEEEE, rotationSpeed: 0.070, orbitSpeed: 0.23, isGasGiant: true, texture: 'https://threejs.org/examples/textures/planets/uranusmap.jpg', atmosphereShell:true, info:"...", gravity: 0.92, temp:"-195°C",atmosphere:"H2/He/CH4", pressure:"High", dayLength:17.2, distanceAU:19.2 },
+            Neptune: { size: 3.88*2, distance:30.10*AU*0.8, color: 0x4682B4, rotationSpeed: 0.075, orbitSpeed: 0.18, isGasGiant: true, texture: 'https://threejs.org/examples/textures/planets/neptunemap.jpg', atmosphereShell:true, info:"...", gravity: 1.14, temp:"-200°C",atmosphere:"H2/He/CH4", pressure:"High", dayLength:16.1, distanceAU:30.1 }
+        };
+
+        // --- Initialization ---
+        function init() { /* ... (Keep exact code from previous good version) ... */
+            currentView = 'loading';
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, AU * 10);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+            document.getElementById('webgl-container').appendChild(renderer.domElement);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05; controls.screenSpacePanning = false;
+            controls.minDistance = 5; controls.maxDistance = 100; controls.enablePan = false;
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.15); scene.add(ambientLight);
+            const hemiLight = new THREE.HemisphereLight(0xC8E6FF, 0x404080, 0.1); scene.add(hemiLight);
+            const sunLight = new THREE.PointLight(0xffffff, 1.6, AU * 50); sunLight.position.set(0, 0, 0); sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048; sunLight.shadow.camera.near = 10; sunLight.shadow.camera.far = AU * 15; sunLight.shadow.bias = -0.001;
+            scene.add(sunLight);
+            const sunGeometry = new THREE.SphereGeometry(AU * 0.06, 64, 64); const sunMaterial = new THREE.MeshBasicMaterial({ map: textureLoader.load('https://threejs.org/examples/textures/planets/sunmap.jpg'), color: 0xffddaa });
+            sun = new THREE.Mesh(sunGeometry, sunMaterial); sun.position.set(0, 0, 0); sun.name = "Sun"; scene.add(sun);
+
+            setupPostProcessing();
+            loadPlayerState();
+            createShip(); // Create NEW ship model
+            createPlanets();
+            createStarfield();
+            createUIElements();
+            simulateInitialPlayerSync();
+            window.addEventListener('resize', onWindowResize, false);
+            window.addEventListener('keydown', handleKeyDown);
+
+            loadingScreen.style.display = 'none';
+            updateAI(`Welcome, ${PLAYER_ID}. Ship systems online.`, true);
+            updateView('orbit');
+            animate();
+        }
+
+        // --- Post Processing Setup ---
+        function setupPostProcessing() {
+             composer = new THREE.EffectComposer(renderer); const renderPass = new THREE.RenderPass(scene, camera); composer.addPass(renderPass); if (!THREE.CopyShader || !THREE.LuminosityHighPassShader) { console.error("Postprocessing deps missing!"); return; } bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85); bloomPass.threshold = 0.85; bloomPass.strength = 0.4; bloomPass.radius = 0.2; composer.addPass(bloomPass);
+         }
+
+        // --- Create Scene Elements ---
+        function createShip() { // REVISED SHIP MODEL
+            ship = new THREE.Group(); ship.name = PLAYER_ID;
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x99aacc, metalness: 0.9, roughness: 0.4 });
+            const engineMaterial = new THREE.MeshStandardMaterial({ color: 0x444455, metalness: 0.8, roughness: 0.6 });
+            const lightMaterial = (color) => new THREE.MeshBasicMaterial({ color: color });
+            const glassMaterial = new THREE.MeshPhysicalMaterial({ color: 0xadd8e6, metalness: 0.1, roughness: 0.1, transmission: 0.9, transparent: true, opacity: 0.5 });
+
+            const bodyRadius = 0.8; const bodyLength = 3.5;
+            // Cylinder Body
+            const cylinderGeo = new THREE.CylinderGeometry(bodyRadius, bodyRadius, bodyLength, 12);
+            const mainCylinder = new THREE.Mesh(cylinderGeo, bodyMaterial); mainCylinder.rotation.z = Math.PI / 2; ship.add(mainCylinder);
+            // Sphere Caps
+            const sphereGeo = new THREE.SphereGeometry(bodyRadius, 12, 8);
+            const capFront = new THREE.Mesh(sphereGeo, bodyMaterial); capFront.position.z = bodyLength / 2; ship.add(capFront);
+            const capBack = new THREE.Mesh(sphereGeo, bodyMaterial); capBack.position.z = -bodyLength / 2; ship.add(capBack);
+            // Cockpit
+             const cockpitGeo = new THREE.SphereGeometry(0.7, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); const cockpit = new THREE.Mesh(cockpitGeo, glassMaterial); cockpit.position.set(0, -0.1, (bodyLength / 2) + 0.1); cockpit.rotation.x = -Math.PI / 18; ship.add(cockpit);
+            // Engines
+            const engineGeo = new THREE.CylinderGeometry(0.5, 0.4, 1.5, 10); const engineLeft = new THREE.Mesh(engineGeo, engineMaterial); engineLeft.position.set(-0.7, 0, (-bodyLength / 2) - 0.7); engineLeft.rotation.z = Math.PI / 2; ship.add(engineLeft); const engineRight = new THREE.Mesh(engineGeo, engineMaterial); engineRight.position.set(0.7, 0, (-bodyLength / 2) - 0.7); engineRight.rotation.z = Math.PI / 2; ship.add(engineRight);
+            // Engine Lights
+            shipEngineLightLeft = new THREE.PointLight(0x00aaff, 2, 3, 1.5); shipEngineLightLeft.position.set(0, 0, -0.8); engineLeft.add(shipEngineLightLeft); shipEngineLightRight = new THREE.PointLight(0x00aaff, 2, 3, 1.5); shipEngineLightRight.position.set(0, 0, -0.8); engineRight.add(shipEngineLightRight);
+            // Panels
+             const panelGeo = new THREE.BoxGeometry(0.1, 2.5, 1.5); const panelLeft = new THREE.Mesh(panelGeo, bodyMaterial); panelLeft.position.set(-1.2, 0, -0.2); ship.add(panelLeft); const panelRight = new THREE.Mesh(panelGeo, bodyMaterial); panelRight.position.set(1.2, 0, -0.2); ship.add(panelRight);
+            // Antenna
+             const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6); shipAntenna = new THREE.Mesh(antennaGeo, engineMaterial); shipAntenna.position.set(0, bodyRadius, bodyLength * 0.3); ship.add(shipAntenna);
+            // Nav Lights
+             const navLightGeo = new THREE.SphereGeometry(0.05, 8, 8); const redLightMesh = new THREE.Mesh(navLightGeo, lightMaterial(0xff0000)); redLightMesh.position.copy(panelLeft.position).add(new THREE.Vector3(-0.05, 0.1, 0)); ship.add(redLightMesh); shipNavLightRed = new THREE.PointLight(0xff0000, 1.5, 1, 2); shipNavLightRed.position.copy(redLightMesh.position); scene.add(shipNavLightRed); const greenLightMesh = new THREE.Mesh(navLightGeo, lightMaterial(0x00ff00)); greenLightMesh.position.copy(panelRight.position).add(new THREE.Vector3(0.05, 0.1, 0)); ship.add(greenLightMesh); shipNavLightGreen = new THREE.PointLight(0x00ff00, 1.5, 1, 2); shipNavLightGreen.position.copy(greenLightMesh.position); scene.add(shipNavLightGreen);
+
+            ship.castShadow = true; ship.children.forEach(child => { if (child.isMesh) child.castShadow = true; });
+            ship.position.copy(shipPositionBeforeJump); ship.quaternion.copy(shipQuaternionBeforeJump);
+            scene.add(ship);
+            setCameraMode(currentCameraMode);
+        }
+        function createPlanets() { /* ... Keep ... */ Object.keys(planetData).forEach(name => { const data = planetData[name]; const geometry = new THREE.SphereGeometry(data.size, 64, 64); const material = new THREE.MeshStandardMaterial({ map: data.texture ? textureLoader.load(data.texture) : null, bumpMap: data.bumpMap ? textureLoader.load(data.bumpMap) : null, bumpScale: data.bumpScale || 0.01, specularMap: data.specMap ? textureLoader.load(data.specMap) : null, roughness: data.isGasGiant ? 0.9 : 0.7, metalness: 0.1 }); if (material.map) { material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping; } const planetMesh = new THREE.Mesh(geometry, material); planetMesh.position.x = data.distance; planetMesh.castShadow = true; planetMesh.receiveShadow = true; planetMesh.name = name; const orbitContainer = new THREE.Object3D(); orbitContainer.add(planetMesh); scene.add(orbitContainer); planets[name] = { mesh: planetMesh, data: data, orbitContainer: orbitContainer }; if (data.atmosphereShell) { const atmosGeometry = new THREE.SphereGeometry(data.size * 1.03, 64, 64); const atmosMaterial = new THREE.MeshStandardMaterial({ color: data.color || 0x87CEEB, transparent: true, opacity: 0.2, blending: THREE.NormalBlending, side: THREE.BackSide, depthWrite: false }); const atmosphereMesh = new THREE.Mesh(atmosGeometry, atmosMaterial); planetMesh.add(atmosphereMesh); planets[name].atmosphereMesh = atmosphereMesh; } if (data.cloudMap) { const cloudGeometry = new THREE.SphereGeometry(data.size * 1.015, 64, 64); const cloudMaterial = new THREE.MeshStandardMaterial({ map: textureLoader.load(data.cloudMap), transparent: true, opacity: 0.7, blending: THREE.NormalBlending, depthWrite: false, side: THREE.DoubleSide }); const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial); planetMesh.add(cloudMesh); planets[name].cloudMesh = cloudMesh; } if (name === 'Saturn' && data.ringTexture) { const ringGeometry = new THREE.RingGeometry(data.size * 1.3, data.size * 2.5, 128); const pos = ringGeometry.attributes.position; const v3 = new THREE.Vector3(); for (let i = 0; i < pos.count; i++){ v3.fromBufferAttribute(pos, i); ringGeometry.attributes.uv.setXY(i, (v3.length() - data.size * 1.3) / (data.size * 2.5 - data.size * 1.3), 1.0); } const ringMaterial = new THREE.MeshStandardMaterial({ map: textureLoader.load(data.ringTexture), alphaMap: textureLoader.load(data.ringTransparency), side: THREE.DoubleSide, transparent: true, opacity: 0.9, metalness: 0.1, roughness: 0.8, depthWrite: false }); const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial); ringMesh.rotation.x = Math.PI * 0.45; ringMesh.receiveShadow = true; planetMesh.add(ringMesh); planets[name].rings = ringMesh; } }); }
+        function createStarfield() { /* ... Keep ... */ const starQty = 25000; const geometry = new THREE.BufferGeometry(); const positions = new Float32Array(starQty * 3); const colors = new Float32Array(starQty * 3); const baseColor = new THREE.Color(0xffffff); for (let i = 0; i < starQty; i++) { const i3 = i * 3; const theta = Math.random() * Math.PI * 2; const phi = Math.acos((Math.random() * 2) - 1); const radius = AU * 5 + Math.random() * AU * 10; positions[i3]=radius*Math.sin(phi)*Math.cos(theta); positions[i3+1]=radius*Math.sin(phi)*Math.sin(theta); positions[i3+2]=radius*Math.cos(phi); const colorVariance = Math.random() * 0.4 - 0.2; const starColor = baseColor.clone().offsetHSL(colorVariance, Math.random() * 0.2 - 0.1, Math.random() * 0.1 - 0.05); colors[i3]=starColor.r; colors[i3+1]=starColor.g; colors[i3+2]=starColor.b; } geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3)); geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3)); const material = new THREE.PointsMaterial({ size: 2.5, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }); skybox = new THREE.Points(geometry, material); skybox.renderOrder = -1; scene.add(skybox); }
+        function createUIElements() { /* ... Keep ... */ starmapNav.innerHTML = ''; Object.keys(planets).forEach(name => { const button = document.createElement('button'); button.textContent = name.substring(0,3); button.title = name; button.onclick = () => { if (currentView === 'orbit') { shipTarget.textContent = name; storeShipTransform(); initiateSpaceJump(planets[name]); } }; starmapNav.appendChild(button); }); window.removeEventListener('keydown', handleKeyDown); window.addEventListener('keydown', handleKeyDown); chatInput.removeEventListener('keydown', handleChatInput); chatInput.addEventListener('keydown', handleChatInput); renderer.domElement.removeEventListener('click', onMouseClickOrbit, false); if (currentView === 'orbit') { renderer.domElement.addEventListener('click', onMouseClickOrbit, false); } }
+
+        // --- State Management & Persistence ---
+        function updateView(newState) { /* ... Keep ... */ if (currentView === newState) return; console.log(`Updating view: ${currentView} -> ${newState}`); const wasOrbit = currentView === 'orbit'; const wasLanded = currentView === 'landed'; currentView = newState; starmapNav.classList.toggle('visible', newState === 'orbit'); shipHud.classList.toggle('visible', newState === 'orbit' || newState === 'cockpit'); planetaryHud.classList.toggle('visible', newState === 'landed'); surfaceInteraction.classList.toggle('visible', newState === 'landed'); multiplayerUi.classList.toggle('visible', newState === 'orbit' || newState === 'landed'); aiModule.classList.toggle('visible', newState === 'orbit' || newState === 'landed' || newState === 'cockpit'); transitionOverlay.classList.toggle('visible', newState === 'jumping' || newState === 'approaching' || newState === 'returning'); transitionOverlay.classList.remove('jump-effect'); cockpitOverlay.classList.toggle('visible', newState === 'cockpit'); renderer.domElement.removeEventListener('click', onMouseClickOrbit, false); if (newState === 'orbit') { renderer.domElement.addEventListener('click', onMouseClickOrbit, false); } switch (newState) { case 'orbit': controls.enabled = true; controls.target.copy(ship.position); controls.minDistance = 5; controls.maxDistance = 100; controls.enablePan = false; if (skybox) skybox.visible = true; if (wasLanded) savePlayerState(); shipTarget.textContent = selectedPlanet ? selectedPlanet.mesh.name : "None"; shipStatus.textContent = "Nominal"; jumpStatus.textContent = "Ready"; jumpStatus.style.color = "limegreen"; updateAI("Orbital navigation active.", true); Object.values(otherPlayers).forEach(p => { if(p.shipMesh) p.shipMesh.visible = true; if(p.tagElement) p.tagElement.style.display = 'block'; }); setCameraMode('orbit'); break; case 'jumping': controls.enabled = false; transitionOverlay.classList.add('jump-effect'); transitionText.textContent = "Engaging Jump Drive"; shipStatus.textContent = "Jumping"; jumpStatus.textContent = "Active"; jumpStatus.style.color = "orange"; updateAI("Quantum jump initiated..."); Object.values(otherPlayers).forEach(p => { if(p.shipMesh) p.shipMesh.visible = false; if(p.tagElement) p.tagElement.style.display = 'none'; }); break; case 'approaching': controls.enabled = false; transitionText.textContent = `Approaching ${selectedPlanet.mesh.name}`; shipStatus.textContent = "Approach"; jumpStatus.textContent = "Cooldown"; jumpStatus.style.color = "yellow"; updateAI(`Entering ${selectedPlanet.mesh.name} sphere of influence.`); Object.values(otherPlayers).forEach(p => { if(p.shipMesh) p.shipMesh.visible = false; if(p.tagElement) p.tagElement.style.display = 'none'; }); break; case 'landed': controls.enabled = false; if (skybox) skybox.visible = false; if (selectedPlanet) { updateHUD(selectedPlanet); updateAI(`Landed on ${selectedPlanet.mesh.name}.`); selectMode(explorationMode, true); hudStatus.textContent = "On Surface"; } else { console.error("Landed state without selectedPlanet!"); updateView('orbit'); } Object.values(otherPlayers).forEach(p => { if(p.shipMesh) p.shipMesh.visible = false; if(p.tagElement) p.tagElement.style.display = 'none'; }); break; case 'returning': controls.enabled = false; if (skybox) skybox.visible = true; transitionText.textContent = "Returning to Ship"; shipStatus.textContent = "Ascending"; updateAI("Recall signal received. Ascending to orbital position."); Object.values(otherPlayers).forEach(p => { if(p.shipMesh) p.shipMesh.visible = false; if(p.tagElement) p.tagElement.style.display = 'none'; }); break; case 'cockpit': controls.enabled = false; if (skybox) skybox.visible = true; shipStatus.textContent = "Pilot Seat"; updateAI("Cockpit view engaged.", true); break; case 'loading': controls.enabled = false; break; } if (newState === 'orbit' || wasOrbit || newState === 'cockpit') createUIElements(); }
+        function savePlayerState() { /* ... Keep ... */ try { localStorage.setItem('sse_lastPosition', JSON.stringify(ship.position)); localStorage.setItem('sse_lastQuaternion', JSON.stringify(ship.quaternion)); console.log("Simulated save state:", ship.position, ship.quaternion); } catch (e) { console.error("LocalStorage save failed:", e); } }
+        function loadPlayerState() { /* ... Keep ... */ try { const pos = localStorage.getItem('sse_lastPosition'); const quat = localStorage.getItem('sse_lastQuaternion'); if (pos) shipPositionBeforeJump.copy(JSON.parse(pos)); else shipPositionBeforeJump.set(0, 0, AU * 1.2); if (quat) shipQuaternionBeforeJump.copy(JSON.parse(quat)); else shipQuaternionBeforeJump.identity(); console.log("Simulated load state:", shipPositionBeforeJump, shipQuaternionBeforeJump); } catch (e) { console.error("LocalStorage load failed:", e); shipPositionBeforeJump.set(0, 0, AU * 1.2); shipQuaternionBeforeJump.identity(); } }
+        function storeShipTransform() { /* ... Keep ... */ shipPositionBeforeJump.copy(ship.position); shipQuaternionBeforeJump.copy(ship.quaternion); }
+
+        // --- UI Update Functions ---
+        function updateHUD(planet) { /* ... Keep (ensure hudStatus check) ... */ const hudStatusEl = document.getElementById('hud-status'); if (!planet || !planet.data || !planet.mesh) { if(hudPlanet) hudPlanet.textContent = "PLANETARY DATA"; if(hudDesignation) hudDesignation.textContent = "N/A"; if(hudGravity) hudGravity.textContent = "-- G"; if(hudTemp) hudTemp.textContent = "-- °C"; if(hudAtmosphere) hudAtmosphere.textContent = "--"; if(hudPressure) hudPressure.textContent = "-- atm"; if(hudDayLength) hudDayLength.textContent = "-- hours"; if(hudDistance) hudDistance.textContent = "-- AU"; if(hudOxygenBar) hudOxygenBar.style.width = `0%`; if(hudStatusEl) hudStatusEl.textContent = "No Data"; return; } const data = planet.data; const name = planet.mesh.name; if(hudPlanet) hudPlanet.textContent = `${name.toUpperCase()} DATA`; if(hudDesignation) hudDesignation.textContent = name; if(hudGravity) hudGravity.textContent = `${data.gravity.toFixed(2)} G`; if(hudTemp) hudTemp.textContent = data.temp; if(hudAtmosphere) hudAtmosphere.textContent = data.atmosphere; if(hudPressure) hudPressure.textContent = data.pressure; if(hudDayLength) hudDayLength.textContent = `${data.dayLength} hours`; if(hudDistance) hudDistance.textContent = `${data.distanceAU} AU`; if (hudStatusEl) hudStatusEl.textContent = "On Surface"; if(hudOxygenBar) { const oxygenPercent = data.oxygen || 0; hudOxygenBar.style.width = `${Math.min(oxygenPercent, 100)}%`; } }
+        function addMessageToOutput(htmlMessage) { /* ... Keep ... */ if (!aiOutput) return; const wasScrolledToBottom = aiOutput.scrollHeight - aiOutput.clientHeight <= aiOutput.scrollTop + 1; aiOutput.innerHTML += htmlMessage; if (wasScrolledToBottom) { aiOutput.scrollTop = aiOutput.scrollHeight; } }
+        function updateAI(message, immediate = false) { /* ... Keep ... */ const formattedMsg = `<div class="ai-message"><i>SOL: ${message}</i></div>`; if (immediate) { aiOutput.innerHTML = formattedMsg; aiOutput.scrollTop = aiOutput.scrollHeight; } else { addMessageToOutput(formattedMsg); } }
+        function selectMode(mode, forceUpdate = false) { /* ... Keep ... */ if (!selectedPlanet || !selectedPlanet.data) return; if (!forceUpdate && explorationMode === mode) return; explorationMode = mode; document.querySelectorAll('#surface-interaction button[id^="mode-"]').forEach(btn => btn.classList.toggle('selected', btn.id === `mode-${mode}`)); let modeInfo = ""; switch(mode) { case 'walk': modeInfo = "EVA mode. Gravity: "+selectedPlanet.data.gravity.toFixed(2)+"G."; break; case 'rover': modeInfo = "Rover deployed. Controls mapped."; break; case 'ship': modeInfo = "Scout ship controls active."; break; } updateAI(modeInfo); const hudStatusEl = document.getElementById('hud-status'); if(hudStatusEl) hudStatusEl.textContent = `Surface Ops (${mode})`; }
+        function performAction(action) { /* ... Keep ... */ if (currentView !== 'landed' || !selectedPlanet) return; let actionInfo = ""; switch(action) { case 'scan': actionInfo = `Area scan initiated...`; break; case 'sample': actionInfo = `Collecting sample...`; break; } updateAI(actionInfo); }
+        function toggleMute() { /* ... Keep ... */ isMuted = !isMuted; voiceStatus.textContent = isMuted ? "Muted" : "Active"; voiceStatus.classList.toggle('muted', isMuted); updateAI(`Voice chat ${isMuted ? 'muted' : 'unmuted'}.`); }
+        function handleChatInput(event) { /* ... Keep ... */ if (event.key === 'Enter' && chatInput.value.trim() !== '') { const message = chatInput.value.trim(); chatInput.value = ''; simulateSendChatMessage(PLAYER_ID, message); simulateReceiveChatMessage(PLAYER_ID, message); setTimeout(() => { simulateReceiveChatMessage("Cmdr_Xeon", `Roger that, ${PLAYER_ID}!`); }, 1500); } }
+
+        // --- Multiplayer Simulation ---
+        function simulateSendChatMessage(playerId, message) { /* ... Keep ... */ console.log(`[NETWORK SIM] Sending: ${playerId}: ${message}`); }
+        function simulateReceiveChatMessage(senderId, message) { /* ... Keep ... */ console.log(`[NETWORK SIM] Received: ${senderId}: ${message}`); const senderName = otherPlayers[senderId]?.name || senderId; const formattedMsg = `<div class="chat-message"><strong>${senderName}:</strong> ${message}</div>`; addMessageToOutput(formattedMsg); }
+        function simulateInitialPlayerSync() { /* ... Keep ... */ simulateReceivePlayerUpdate('Cmdr_Xeon', { x: 50, y: 10, z: AU * 1.1 }, { _x: 0, _y: 0.5, _z: 0, _w: 0.86 }); simulateReceivePlayerUpdate('Raptor_7', { x: -30, y: -5, z: AU * 1.3 }, { _x: 0, _y: -0.2, _z: 0, _w: 0.98 }); }
+        function addOtherPlayerShip(playerId, name) { /* ... Keep (ensure it uses the Group structure) ... */ const otherShip = new THREE.Group(); const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffaa99, metalness: 0.9, roughness: 0.4 }); const engineMat = new THREE.MeshStandardMaterial({ color: 0x554444, metalness: 0.8, roughness: 0.6 }); const bodyRadius = 0.8; const bodyLength = 3.5; const cylinderGeo = new THREE.CylinderGeometry(bodyRadius, bodyRadius, bodyLength, 12); const mainCylinder = new THREE.Mesh(cylinderGeo, bodyMat); mainCylinder.rotation.z = Math.PI / 2; otherShip.add(mainCylinder); const sphereGeo = new THREE.SphereGeometry(bodyRadius, 12, 8); const capFront = new THREE.Mesh(sphereGeo, bodyMat); capFront.position.z = bodyLength / 2; otherShip.add(capFront); const capBack = new THREE.Mesh(sphereGeo, bodyMat); capBack.position.z = -bodyLength / 2; otherShip.add(capBack); const engineGeo = new THREE.CylinderGeometry(0.5, 0.4, 1.5, 10); const engineLeft = new THREE.Mesh(engineGeo, engineMat); engineLeft.position.set(-0.7, 0, (-bodyLength / 2) - 0.7); engineLeft.rotation.z = Math.PI / 2; otherShip.add(engineLeft); const engineRight = new THREE.Mesh(engineGeo, engineMat); engineRight.position.set(0.7, 0, (-bodyLength / 2) - 0.7); engineRight.rotation.z = Math.PI / 2; otherShip.add(engineRight); const panelGeo = new THREE.BoxGeometry(0.1, 2.5, 1.5); const panelLeft = new THREE.Mesh(panelGeo, bodyMat); panelLeft.position.set(-1.2, 0, -0.2); otherShip.add(panelLeft); const panelRight = new THREE.Mesh(panelGeo, bodyMat); panelRight.position.set(1.2, 0, -0.2); otherShip.add(panelRight); otherShip.name = `Ship_${playerId}`; otherShip.visible = (currentView === 'orbit'); scene.add(otherShip); const tag = document.createElement('div'); tag.className = 'player-tag'; tag.textContent = name; document.body.appendChild(tag); return { shipMesh: otherShip, tagElement: tag }; }
+        function simulateReceivePlayerUpdate(playerId, position, quaternion) { /* ... Keep ... */ if (playerId === PLAYER_ID) return; if (!otherPlayers[playerId]) { const name = playerId; const playerAssets = addOtherPlayerShip(playerId, name); otherPlayers[playerId] = { name: name, shipMesh: playerAssets.shipMesh, tagElement: playerAssets.tagElement, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), lerpFactor: 0.1 }; console.log(`[NETWORK SIM] Player joined: ${name}`); updateAI(`Pilot ${name} entered the system.`); } otherPlayers[playerId].position.set(position.x, position.y, position.z); otherPlayers[playerId].quaternion.set(quaternion._x, quaternion._y, quaternion._z, quaternion._w); }
+        function updateOtherPlayerShips(delta) { /* ... Keep ... */ Object.values(otherPlayers).forEach(player => { if (player.shipMesh && player.shipMesh.visible) { player.shipMesh.position.lerp(player.position, player.lerpFactor); player.shipMesh.quaternion.slerp(player.quaternion, player.lerpFactor); if (player.tagElement) { const screenPos = worldToScreen(player.shipMesh.position, camera); if (screenPos.z < 1) { player.tagElement.style.left = `${screenPos.x}px`; player.tagElement.style.top = `${screenPos.y - 15}px`; player.tagElement.style.display = 'block'; } else { player.tagElement.style.display = 'none'; } } } }); }
+        function worldToScreen(worldVec, camera) { /* ... Keep ... */ const vector = worldVec.clone().project(camera); vector.x = (vector.x + 1) / 2 * window.innerWidth; vector.y = -(vector.y - 1) / 2 * window.innerHeight; return vector; }
+
+        // --- Interactions & Transitions ---
+        function handleKeyDown(event) { // Centralized key handler
+             if ((event.key === 'r' || event.key === 'R') && currentView === 'landed') { returnToShip(); }
+             if ((event.key === 'c' || event.key === 'C') && (currentView === 'orbit' || currentView === 'cockpit' || currentView === 'chase')) { cycleCameraMode(); } // Allow cycling from chase too
+             // Pass to chat input if focused, but NOT if other keys are handled
+             else if (document.activeElement === chatInput) { handleChatInput(event); }
+             // TODO: Add WASD controls for surface movement when currentView is 'landed'
+        }
+        function onWindowResize() { /* ... Keep ... */ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); if (composer) { composer.setSize(window.innerWidth, window.innerHeight); } }
+        function onMouseClickOrbit(event) { /* ... Keep ... */ if (currentView !== 'orbit') return; mouse.x = (event.clientX / window.innerWidth) * 2 - 1; mouse.y = -(event.clientY / window.innerHeight) * 2 + 1; raycaster.setFromCamera(mouse, camera); const planetMeshes = Object.values(planets).map(p => p.mesh); const intersects = raycaster.intersectObjects(planetMeshes); if (intersects.length > 0) { const clickedPlanetMesh = intersects[0].object; const planetInfo = planets[clickedPlanetMesh.name]; if (planetInfo) { shipTarget.textContent = clickedPlanetMesh.name; storeShipTransform(); initiateSpaceJump(planetInfo); } } }
+        function initiateSpaceJump(targetPlanet) { /* ... Keep (with glow effect) ... */ if (!targetPlanet || currentView !== 'orbit') return; console.log(`Initiating jump to ${targetPlanet.mesh.name}`); selectedPlanet = targetPlanet; updateView('jumping'); if (isInSquad && squadTargetPlanet && squadTargetPlanet !== targetPlanet) { updateAI("Squad destination mismatch. Aborting jump.", true); setTimeout(() => updateView('orbit'), 1500); return; } if (isInSquad) { transitionText.textContent = "Synchronizing Squad Jump..."; } setEngineGlow(true); const jumpDuration = 2.5; const fovMax = 140; const initialFOV = camera.fov; const targetPos = new THREE.Vector3(); targetPlanet.mesh.getWorldPosition(targetPos); const arrivalOffset = targetPos.clone().normalize().multiplyScalar(targetPlanet.data.size * 5 + 20); const arrivalPos = targetPos.clone().add(arrivalOffset); ship.lookAt(targetPos); const tl = gsap.timeline({ onComplete: () => { setEngineGlow(false); simulateArrival(targetPlanet); } }); tl.to(camera, { fov: fovMax, duration: jumpDuration * 0.2, ease: "power2.in" }, 0); tl.to(bloomPass, { strength: 3.0, duration: jumpDuration * 0.2, ease: "power2.in" }, 0); tl.to(ship.position, { x: arrivalPos.x, y: arrivalPos.y, z: arrivalPos.z, duration: jumpDuration * 0.6, ease: "none" }, jumpDuration * 0.2); tl.to(camera.position, { x: '+=0.2', y: '-=0.2', z: '+=0.1', repeat: 5, yoyo: true, duration: jumpDuration * 0.6 / 6, ease: "power1.inOut"}, jumpDuration * 0.2); tl.to(camera, { fov: initialFOV, duration: jumpDuration * 0.2, ease: "power2.out" }, jumpDuration * 0.8); tl.to(bloomPass, { strength: 0.4, duration: jumpDuration * 0.2, ease: "power2.out" }, jumpDuration * 0.8); }
+        function simulateArrival(planet) { /* ... Keep ... */ if (!planet) return; updateView('approaching'); const planetSize = planet.data.size; let planetWorldPos = new THREE.Vector3(); planet.mesh.getWorldPosition(planetWorldPos); const approachOffset = planetWorldPos.clone().normalize().multiplyScalar(planetSize * 1.5); const approachPos = planetWorldPos.clone().add(approachOffset); ship.position.copy(approachPos); ship.lookAt(planetWorldPos); gsap.to(ship.position, { duration: 3.0, x: planetWorldPos.x + planetSize * 1.1, y: planetWorldPos.y + planetSize * 0.5, z: planetWorldPos.z, ease: "power2.out", onComplete: () => { simulateLanding(planet); } }); }
+        function simulateLanding(planet) { /* ... Keep ... */ if (!planet) return; updateView('landed'); let planetWorldPos = new THREE.Vector3(); planet.mesh.getWorldPosition(planetWorldPos); const surfaceOffset = planet.data.size * 1.02 + 1.6; camera.position.copy(planetWorldPos).add(new THREE.Vector3(0, surfaceOffset, 0)); let lookTarget = planetWorldPos.clone().add(new THREE.Vector3(5, surfaceOffset - 1.6, 0)); camera.lookAt(lookTarget); console.log("Surface exploration enabled (simulated)."); }
+        function returnToShip() { /* ... Keep (with glow effect) ... */ if (currentView !== 'landed') return; console.log("Returning to ship..."); updateView('returning'); setEngineGlow(true); const returnDuration = 3.5; const targetPosition = new THREE.Vector3().copy(JSON.parse(localStorage.getItem('sse_lastPosition') || shipPositionBeforeJump.toJSON())); const targetQuaternion = new THREE.Quaternion().copy(JSON.parse(localStorage.getItem('sse_lastQuaternion') || shipQuaternionBeforeJump.toJSON())); gsap.to(camera.position, { duration: returnDuration, x: targetPosition.x + cameraOffset.x, y: targetPosition.y + cameraOffset.y, z: targetPosition.z + cameraOffset.z, ease: "power3.inOut", onUpdate: () => { camera.lookAt(ship.position); } }); gsap.to(ship.position, { duration: returnDuration, x: targetPosition.x, y: targetPosition.y, z: targetPosition.z, ease: "power3.inOut" }); gsap.to({}, { duration: returnDuration, onUpdate: function() { ship.quaternion.slerp(targetQuaternion, this.progress()); }, ease: "power3.inOut", onComplete: () => { ship.quaternion.copy(targetQuaternion); setEngineGlow(false); updateView('orbit'); console.log("Returned to orbital position."); } }); }
+
+        // --- New Camera & Ship Animation Logic ---
+         function setCameraMode(mode) {
+             if (!ship) return; currentCameraMode = mode; controls.enabled = false; cockpitOverlay.classList.remove('visible');
+             switch (mode) {
+                 case 'chase': cameraOffset.set(0, 3, -10); console.log("Camera: Chase Mode"); break;
+                 case 'orbit': cameraOffset.set(0, 10, -20); controls.enabled = true; controls.target.copy(ship.position); controls.minDistance = 10; controls.maxDistance = 100; console.log("Camera: Orbit Mode"); const orbitStartPos = new THREE.Vector3().copy(cameraOffset).applyQuaternion(ship.quaternion).add(ship.position); camera.position.copy(orbitStartPos); camera.lookAt(ship.position); break;
+                 case 'cockpit': cameraOffset.set(0, 0.3, 1.5); const cockpitPos = new THREE.Vector3().copy(cameraOffset).applyQuaternion(ship.quaternion).add(ship.position); camera.position.copy(cockpitPos); const lookAhead = new THREE.Vector3(0, 0, 50).applyQuaternion(ship.quaternion).add(ship.position); camera.lookAt(lookAhead); cockpitOverlay.classList.add('visible'); console.log("Camera: Cockpit Mode"); if(currentView !== 'cockpit') updateView('cockpit'); break;
+             }
+             if (mode !== 'orbit') controls.target.set(0,0,0);
+         }
+         function cycleCameraMode() { if (!ship) return; if (currentCameraMode === 'chase') setCameraMode('orbit'); else if (currentCameraMode === 'orbit') setCameraMode('cockpit'); else if (currentCameraMode === 'cockpit') setCameraMode('chase'); }
+         function setEngineGlow(active, intensityMultiplier = 5.0) { const baseIntensity = 2; const targetIntensity = active ? baseIntensity * intensityMultiplier : baseIntensity; const duration = active ? 0.3 : 1.0; if (shipEngineLightLeft) gsap.to(shipEngineLightLeft, { intensity: targetIntensity, duration: duration }); if (shipEngineLightRight) gsap.to(shipEngineLightRight, { intensity: targetIntensity, duration: duration }); }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta(); const elapsedTime = clock.getElapsedTime();
+            Object.values(planets).forEach(p => { /* Planet animation - Keep */ if (p.orbitContainer) { const orbitSpeed = p.data.orbitSpeed || 0; p.orbitContainer.rotation.y = elapsedTime * orbitSpeed * 0.05; const rotationSpeed = p.data.rotationSpeed || 0; p.mesh.rotation.y = elapsedTime * rotationSpeed * 5; if (p.cloudMesh) { p.cloudMesh.rotation.y = elapsedTime * rotationSpeed * 5.5; } if (p.rings) { p.rings.rotation.z = elapsedTime * rotationSpeed * -0.5; } } });
+            // --- Ship Animations ---
+            if (ship) {
+                 const pulse = (Math.sin(elapsedTime * 5) + 1) / 2;
+                 const baseIntensity = (currentView === 'jumping' || currentView === 'returning') ? 4 : 2;
+                 if (shipEngineLightLeft) shipEngineLightLeft.intensity = baseIntensity + pulse * 0.8; if (shipEngineLightRight) shipEngineLightRight.intensity = baseIntensity + pulse * 0.8;
+                 const blinkOn = Math.floor(elapsedTime * 2) % 2 === 0;
+                 // Update nav light positions relative to ship world transform
+                 if(shipNavLightRed) {
+                     const worldPosRed = new THREE.Vector3(-1.25, 0.1, -0.4); // Original local position
+                     ship.localToWorld(worldPosRed); // Convert to world space
+                     shipNavLightRed.position.copy(worldPosRed);
+                     shipNavLightRed.intensity = blinkOn ? 1.5 : 0;
+                 }
+                 if(shipNavLightGreen) {
+                      const worldPosGreen = new THREE.Vector3(1.25, 0.1, -0.4); // Original local position
+                      ship.localToWorld(worldPosGreen); // Convert to world space
+                      shipNavLightGreen.position.copy(worldPosGreen);
+                      shipNavLightGreen.intensity = blinkOn ? 1.5 : 0;
+                 }
+                 if (shipAntenna) shipAntenna.rotation.y += delta * 0.1;
+            }
+            if (currentView === 'orbit') updateOtherPlayerShips(delta);
+            // Camera and Controls Update
+            if (ship && (currentView === 'orbit' || currentView === 'cockpit' || currentView === 'chase')) {
+                 if (currentCameraMode === 'orbit') { controls.update(); }
+                 else if (currentCameraMode === 'chase') { const desiredCamPos = new THREE.Vector3().copy(cameraOffset).applyQuaternion(ship.quaternion).add(ship.position); camera.position.lerp(desiredCamPos, delta * 4.0); currentCameraTarget.lerp(ship.position, delta * 5.0); camera.lookAt(currentCameraTarget); }
+                 else if (currentCameraMode === 'cockpit') { const cockpitPos = new THREE.Vector3().copy(cameraOffset).applyQuaternion(ship.quaternion).add(ship.position); camera.position.copy(cockpitPos); const lookAhead = new THREE.Vector3(0, 0, 50).applyQuaternion(ship.quaternion).add(ship.position); camera.lookAt(lookAhead); }
+            } else if (currentView === 'landed') { /* Surface control placeholder */ }
+            // Render
+            if (composer) { composer.render(delta); } else { renderer.render(scene, camera); }
+        }
+
+        // --- Start Application ---
+         setTimeout(init, 100);
+         // --- Dummy functions ---
+         function invitePlayer(name) { updateAI(`Sending squad invite to ${name}... (Simulated)`); }
+         function joinPlayer(name) { updateAI(`Attempting to join ${name}'s squad... (Simulated)`); isInSquad = true; squadTargetPlanet = null; }
+         function leaveSquad() { updateAI(`Leaving squad... (Simulated)`); isInSquad = false; squadTargetPlanet = null; }
+
+    </script>
+</body>
+</html>
